@@ -14,7 +14,10 @@ import uuid
 from django.core.mail import send_mail
 from django.conf import settings
 from django.utils.timezone import now 
+from datetime import datetime, timedelta
 import datetime
+from django.utils import timezone
+
 class RegisterationView(APIView):
 
 	authentication_classes = () 
@@ -123,26 +126,72 @@ class ForgotPasswordView(APIView):
 	def post(self,request):
 		context ={}
 		try:
-			email = request.POST.get('email')
+			email = request.data.get('email')
+			# now =  timezone.now()
+			# expired_time = now + datetime.timedelta(seconds=15)
 			match = User.objects.get(email=email)
-			if match:
-				token = uuid.uuid4().hex[:6].upper()
-				db = ForgotPassword(email=email,activation_key=token)
-				db.save()
-				send_mail('Token verification',
-						  token,
-						  settings.EMAIL_HOST_USER,
-						  [email],
-						  fail_silently=False,)
-				context['status']= True
-				context['message']= 'successfully saved'
-			else:
-				context['status'] = False
-				context['message']= 'Something went wrong ' 
+			activation_key = uuid.uuid4().hex[:6].upper()
+			db = ForgotPassword(email=email,activation_key=activation_key)
+			db.save()
+			send_mail('Token verification',
+					  activation_key,
+					  settings.EMAIL_HOST_USER,
+					  [email],
+					  fail_silently=False,)
+			context['status']= True
+			context['message']= 'successfully saved' 
 		except Exception as e:    
 			context['success'] = False
-			context['message'] = 'This email does not exists'
+			context['message'] = str(e)
 		return Response(context)
+
+
+
+# class ConfirmToken(APIView):
+# 	authentication_classes = ()
+# 	def post(self,request,*args,**kwargs):
+# 		context = {}
+# 		email = request.data.get('email')
+# 		activation_key = request.data.get('token')
+# 		try:
+# 			match = ForgotPassword.objects.get(activation_key=activation_key)
+# 			if match:
+# 				latest = ForgotPassword.objects.latest('id')
+# 				if latest.activation_key == activation_key and latest.is_deleted == False and latest.email==email:
+# 					user = User.objects.get(email=email)
+# 					user.set_password(request.data.get('new_password'))
+# 					latest.is_deleted = True
+# 					user.save()
+# 					latest.save()
+# 					context['status'] = True
+# 					context['message'] = 'successfully reset password'
+# 					return Response(context)
+# 				else:
+# 					context['status'] = False
+# 					context['status'] = 'Invalid Token please Generate new Token'
+# 					return Response(context)
+# 			else:
+# 				context['status'] = False
+# 				context['message'] = 'Token doesnot exists'
+# 				return Response(context)
+# 		except Exception as e:    
+# 			context['success'] = False
+# 			context['message'] = str(e)
+# 			print(e)
+# 		return Response(context)
+
+
+
+# one_time = Share_url.objects.get(key=uidb64)
+#             print(one_time)
+#             if one_time:
+#                 one_time.checked = True
+#                 exp_time = one_time.expired_time
+#                 now = datetime.datetime.now()
+#                 if now > exp_time:
+#                     return HttpResponse('link is expired')
+
+
 
 
 class ConfirmToken(APIView):
@@ -152,10 +201,12 @@ class ConfirmToken(APIView):
 		email = request.data.get('email')
 		activation_key = request.data.get('token')
 		try:
-			match = ForgotPassword.objects.get(activation_key=activation_key)
-			if match:
-				latest = ForgotPassword.objects.latest('id')
-				if latest.activation_key == activation_key and latest.is_deleted == False and latest.email==email:
+			match = ForgotPassword.objects.filter(email = email)
+			latest = match.latest('id')
+			#exp_time = latest.expired_time
+			#now =  timezone.now()
+			if latest.activation_key == activation_key:
+				if latest.is_deleted == False :		
 					user = User.objects.get(email=email)
 					user.set_password(request.data.get('new_password'))
 					latest.is_deleted = True
@@ -163,17 +214,19 @@ class ConfirmToken(APIView):
 					latest.save()
 					context['status'] = True
 					context['message'] = 'successfully reset password'
-					return Response(context)
+					return Response(context)				
 				else:
 					context['status'] = False
-					context['status'] = 'Invalid Token please Generate new Token'
+					context['message'] = 'This token is already use please Generate new one'
 					return Response(context)
 			else:
 				context['status'] = False
-				context['message'] = 'Token doesnot exists'
+				context['message'] = 'Invalid Token'
 				return Response(context)
 		except Exception as e:    
 			context['success'] = False
-			context['message'] = str(e)
+			context['message'] = 'wrong email'
 			print(e)
 		return Response(context)
+
+
